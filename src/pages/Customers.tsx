@@ -11,9 +11,13 @@ const EMPTY_CUSTOMER = {
 };
 
 const EMPTY_INSTALL = {
-  projectTitle: '', status: 'Pending', deliveredBy: '', receivedBy: '',
-  installationDate: '', remarks: '',
+  projectTitle: '', projectCategory: '', status: 'Pending',
+  siteName: '', geoLocation: '', endUserName: '', endUserPhone: '',
+  deliveredBy: '', receivedBy: '', installationDate: '', remarks: '',
   wellData: { diameter: '', depth: '', waterLevel: '', casingSize: '', casingType: '' },
+  pumpData: { type: '', serialNumber: '', brand: '', model: '', power: '', maxDischarge: '', maxHead: '', controller: '', solarPanel: '' },
+  packageItems: { pipe: '', acCables: '', dcCables: '', accessories: '', pvMountedStructure: '', fence: '' },
+  installationTeam: ['', '', ''],
   activitiesPerformed: {
     casing: false, solarPump: false, testing: false,
     solarPanelStructure: false, sprinkler: false, practicalTraining: false,
@@ -132,6 +136,7 @@ export default function Customers() {
           casingSize: installForm.wellData.casingSize,
           casingType: installForm.wellData.casingType,
         },
+        installationTeam: installForm.installationTeam.filter((t: string) => t.trim() !== ''),
       };
       await iApi.create(body);
       setShowInstallForm(false);
@@ -194,77 +199,148 @@ export default function Customers() {
     </div>
   );
 
+  const iSet = (key: string, val: any) => setInstallForm((f: any) => ({ ...f, [key]: val }));
+  const iPump = (key: string, val: string) => setInstallForm((f: any) => ({ ...f, pumpData: { ...f.pumpData, [key]: val } }));
+  const iPkg  = (key: string, val: string) => setInstallForm((f: any) => ({ ...f, packageItems: { ...f.packageItems, [key]: val } }));
+  const iWell = (key: string, val: string) => setInstallForm((f: any) => ({ ...f, wellData: { ...f.wellData, [key]: val } }));
+  const iAct  = (key: string, val: boolean) => setInstallForm((f: any) => ({ ...f, activitiesPerformed: { ...f.activitiesPerformed, [key]: val } }));
+  const iTeam = (idx: number, val: string) => setInstallForm((f: any) => {
+    const t = [...f.installationTeam]; t[idx] = val; return { ...f, installationTeam: t };
+  });
+
   // ── Inline installation form ───────────────────────────────────────────────
   const InstallFormInline = () => (
-    <div className="border border-surface-border rounded-xl p-4 mt-3 space-y-4 bg-surface">
+    <div className="border border-surface-border rounded-xl p-4 mt-3 space-y-5 bg-surface">
       <h4 className="text-sm font-semibold text-white">New Installation</h4>
       {installError && (
         <p className="text-xs text-red-400 bg-red-900/20 border border-red-700/40 px-3 py-2 rounded-lg">{installError}</p>
       )}
+
+      {/* Project */}
+      <div className="space-y-3">
+        <div>
+          <label className="form-label">Project Title</label>
+          <input className="form-input" value={installForm.projectTitle} onChange={(e) => iSet('projectTitle', e.target.value)} placeholder="e.g. Supply and Install solar powered submersable pumps" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Project Category</label>
+            <input className="form-input" value={installForm.projectCategory} onChange={(e) => iSet('projectCategory', e.target.value)} placeholder="e.g. Solar water Pump" />
+          </div>
+          <div>
+            <label className="form-label">Site Name</label>
+            <input className="form-input" value={installForm.siteName} onChange={(e) => iSet('siteName', e.target.value)} placeholder="e.g. Galo argisa" />
+          </div>
+        </div>
+        <div>
+          <label className="form-label">Geo Location</label>
+          <input className="form-input" value={installForm.geoLocation} onChange={(e) => iSet('geoLocation', e.target.value)} placeholder="e.g. X:431849, Y:778586, Z:1683" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">End User Name</label>
+            <input className="form-input" value={installForm.endUserName} onChange={(e) => iSet('endUserName', e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">End User Phone</label>
+            <input className="form-input" value={installForm.endUserPhone} onChange={(e) => iSet('endUserPhone', e.target.value)} placeholder="09xxxxxxxx" />
+          </div>
+        </div>
+      </div>
+
+      {/* Pump */}
       <div>
-        <label className="form-label">Project Title</label>
-        <input className="form-input" value={installForm.projectTitle} onChange={(e) => setInstallForm({ ...installForm, projectTitle: e.target.value })} placeholder="e.g. Solar Powered Submersible Pump + Sprinkler Kit" />
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Pump Details</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {([['type','Pump Type'],['brand','Brand'],['model','Model'],['serialNumber','Serial Number'],['power','Pump Power'],['maxDischarge','Max Discharge'],['maxHead','Max Head'],['controller','Controller'],['solarPanel','Solar Panel']] as [string,string][]).map(([k, lbl]) => (
+            <div key={k}>
+              <label className="form-label">{lbl}</label>
+              <input className="form-input" value={installForm.pumpData[k]} onChange={(e) => iPump(k, e.target.value)} />
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Well Data */}
       <div>
-        <p className="form-label mb-2">Well Data</p>
-        <div className="grid grid-cols-2 gap-2">
-          {[['diameter','Diameter (m)'],['depth','Depth (m)'],['waterLevel','Water Level (m)'],['casingSize','Casing Size']] .map(([k, lbl]) => (
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Well Data</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {([['diameter','Diameter (m)'],['depth','Depth (m)'],['waterLevel','Water Level (m)'],['casingSize','Casing Size'],['casingType','Casing Type']] as [string,string][]).map(([k, lbl]) => (
             <div key={k}>
               <label className="form-label">{lbl}</label>
-              <input className="form-input" value={installForm.wellData[k]}
-                onChange={(e) => setInstallForm({ ...installForm, wellData: { ...installForm.wellData, [k]: e.target.value } })} />
+              <input className="form-input" value={installForm.wellData[k]} onChange={(e) => iWell(k, e.target.value)} />
             </div>
           ))}
-          <div className="col-span-2">
-            <label className="form-label">Casing Type</label>
-            <input className="form-input" value={installForm.wellData.casingType}
-              onChange={(e) => setInstallForm({ ...installForm, wellData: { ...installForm.wellData, casingType: e.target.value } })} />
-          </div>
+        </div>
+      </div>
+
+      {/* Package Items */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Package Items Delivered</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {([['pipe','Pipe'],['acCables','AC Cables'],['dcCables','DC Cables'],['accessories','Accessories'],['pvMountedStructure','PV Mounted Structure'],['fence','Fence']] as [string,string][]).map(([k, lbl]) => (
+            <div key={k}>
+              <label className="form-label">{lbl}</label>
+              <input className="form-input" value={installForm.packageItems[k]} onChange={(e) => iPkg(k, e.target.value)} placeholder="Spec / quantity" />
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Activities */}
       <div>
-        <p className="form-label mb-2">Activities Performed</p>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Activities Performed</p>
         <div className="grid grid-cols-2 gap-y-2 gap-x-3">
           {ACTIVITIES.map(([key, label]) => (
             <label key={key} className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 accent-primary rounded"
                 checked={installForm.activitiesPerformed[key]}
-                onChange={(e) => setInstallForm({ ...installForm, activitiesPerformed: { ...installForm.activitiesPerformed, [key]: e.target.checked } })} />
+                onChange={(e) => iAct(key, e.target.checked)} />
               <span className="text-sm text-gray-300">{label}</span>
             </label>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      {/* Installation Team */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Installation Team</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {installForm.installationTeam.map((name: string, idx: number) => (
+            <div key={idx}>
+              <label className="form-label">Technician {idx + 1}</label>
+              <input className="form-input" value={name} onChange={(e) => iTeam(idx, e.target.value)} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Delivery & Status */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="form-label">Delivered By</label>
-          <input className="form-input" value={installForm.deliveredBy} onChange={(e) => setInstallForm({ ...installForm, deliveredBy: e.target.value })} />
+          <input className="form-input" value={installForm.deliveredBy} onChange={(e) => iSet('deliveredBy', e.target.value)} />
         </div>
         <div>
           <label className="form-label">Received By</label>
-          <input className="form-input" value={installForm.receivedBy} onChange={(e) => setInstallForm({ ...installForm, receivedBy: e.target.value })} />
+          <input className="form-input" value={installForm.receivedBy} onChange={(e) => iSet('receivedBy', e.target.value)} />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="form-label">Installation Date</label>
-          <input className="form-input" type="date" value={installForm.installationDate} onChange={(e) => setInstallForm({ ...installForm, installationDate: e.target.value })} />
+          <input className="form-input" type="date" value={installForm.installationDate} onChange={(e) => iSet('installationDate', e.target.value)} />
         </div>
         <div>
           <label className="form-label">Status</label>
-          <select className="form-input" value={installForm.status} onChange={(e) => setInstallForm({ ...installForm, status: e.target.value })}>
+          <select className="form-input" value={installForm.status} onChange={(e) => iSet('status', e.target.value)}>
             {['Pending','In Progress','Completed','Cancelled'].map((s) => <option key={s}>{s}</option>)}
           </select>
         </div>
       </div>
       <div>
         <label className="form-label">Remarks</label>
-        <textarea className="form-input" rows={2} value={installForm.remarks} onChange={(e) => setInstallForm({ ...installForm, remarks: e.target.value })} />
+        <textarea className="form-input" rows={2} value={installForm.remarks} onChange={(e) => iSet('remarks', e.target.value)} />
       </div>
       <div className="flex gap-3">
         <button className="btn-ghost flex-1" onClick={() => { setShowInstallForm(false); setInstallForm({ ...EMPTY_INSTALL }); }}>Cancel</button>
@@ -325,16 +401,25 @@ export default function Customers() {
         ) : (
           <div className="space-y-3">
             {customerInstalls.map((inst: any) => (
-              <div key={inst._id} className="border border-surface-border rounded-lg p-3 hover:border-primary/40 transition-colors">
-                <div className="flex items-start justify-between gap-2 mb-1">
+              <div key={inst._id} className="border border-surface-border rounded-lg p-3 hover:border-primary/40 transition-colors space-y-1.5">
+                <div className="flex items-start justify-between gap-2">
                   <p className="text-sm text-white font-medium leading-snug">{inst.projectTitle || 'Untitled project'}</p>
                   <StatusBadge status={inst.status} />
                 </div>
+                {inst.projectCategory && <p className="text-xs text-primary">{inst.projectCategory}</p>}
+                {inst.siteName && <p className="text-xs text-gray-400">Site: {inst.siteName}</p>}
+                {inst.endUserName && <p className="text-xs text-gray-500">End user: {inst.endUserName}{inst.endUserPhone ? ` · ${inst.endUserPhone}` : ''}</p>}
                 {inst.installationDate && (
-                  <p className="text-xs text-gray-500">{new Date(inst.installationDate).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-500">Date: {new Date(inst.installationDate).toLocaleDateString()}</p>
                 )}
-                {inst.deliveredBy && <p className="text-xs text-gray-500 mt-1">Delivered by: {inst.deliveredBy}</p>}
-                <div className="flex flex-wrap gap-1 mt-2">
+                {inst.pumpData?.brand && (
+                  <p className="text-xs text-gray-500">Pump: {inst.pumpData.brand} {inst.pumpData.model}{inst.pumpData.type ? ` · ${inst.pumpData.type}` : ''}</p>
+                )}
+                {inst.installationTeam?.length > 0 && (
+                  <p className="text-xs text-gray-500">Team: {inst.installationTeam.join(', ')}</p>
+                )}
+                {inst.deliveredBy && <p className="text-xs text-gray-500">Delivered by: {inst.deliveredBy}</p>}
+                <div className="flex flex-wrap gap-1 pt-0.5">
                   {Object.entries(inst.activitiesPerformed || {}).filter(([, v]) => v).map(([k]) => (
                     <span key={k} className="text-[10px] bg-surface px-1.5 py-0.5 rounded text-gray-400 border border-surface-border">
                       {ACTIVITIES.find(([key]) => key === k)?.[1] || k}
