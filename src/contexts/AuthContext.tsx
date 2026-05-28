@@ -16,9 +16,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!getToken()) { setLoading(false); return; }
     auth.me()
       .then((r) => setUser(r.data.user))
-      .catch(() => setUser(null))
+      .catch(() => { removeToken(); setUser(null); })
       .finally(() => setLoading(false));
   }, []);
 
