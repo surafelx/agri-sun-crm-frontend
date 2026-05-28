@@ -36,30 +36,26 @@ export default function Customers() {
   const [search, setSearch]     = useState('');
   const [loading, setLoading]   = useState(true);
 
-  // Customer form (create / edit)
-  const [showCreate, setShowCreate]   = useState(false);
+  const [showCreate, setShowCreate]     = useState(false);
   const [editCustomer, setEditCustomer] = useState<any>(null);
-  const [form, setForm]               = useState({ ...EMPTY_CUSTOMER });
-  const [saving, setSaving]           = useState(false);
-  const [formError, setFormError]     = useState('');
+  const [form, setForm]                 = useState({ ...EMPTY_CUSTOMER });
+  const [saving, setSaving]             = useState(false);
+  const [formError, setFormError]       = useState('');
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
-  // Inline customer detail panel
-  const [selected, setSelected]             = useState<any>(null);
+  const [selected, setSelected]               = useState<any>(null);
   const [customerInstalls, setCustomerInstalls] = useState<any[]>([]);
   const [loadingInstalls, setLoadingInstalls]   = useState(false);
 
-  // Inline installation form (toggleable inside the panel)
   const [showInstallForm, setShowInstallForm] = useState(false);
   const [installForm, setInstallForm]         = useState<any>({ ...EMPTY_INSTALL });
   const [savingInstall, setSavingInstall]     = useState(false);
   const [installError, setInstallError]       = useState('');
 
-  // On mobile, panel slides up as a full overlay
   const [panelOpen, setPanelOpen] = useState(false);
 
+  // ── Data ──────────────────────────────────────────────────────────────────
   const load = async () => {
     setLoading(true);
     const r = await cApi.list({ search, limit: 50 });
@@ -90,11 +86,8 @@ export default function Customers() {
         latitude:  form.latitude  !== '' ? Number(form.latitude)  : null,
         longitude: form.longitude !== '' ? Number(form.longitude) : null,
       };
-      if (editCustomer) {
-        await cApi.update(editCustomer._id, body);
-      } else {
-        await cApi.create(body);
-      }
+      if (editCustomer) await cApi.update(editCustomer._id, body);
+      else              await cApi.create(body);
       setShowCreate(false); setEditCustomer(null); setForm({ ...EMPTY_CUSTOMER });
       load();
     } catch (e: any) {
@@ -148,8 +141,18 @@ export default function Customers() {
     } finally { setSavingInstall(false); }
   };
 
-  // ── Customer form fields (shared between create & edit modal) ─────────────
-  const CustomerFormFields = () => (
+  // ── Install form helpers ───────────────────────────────────────────────────
+  const iSet  = (key: string, val: any)     => setInstallForm((f: any) => ({ ...f, [key]: val }));
+  const iPump = (key: string, val: string)  => setInstallForm((f: any) => ({ ...f, pumpData:    { ...f.pumpData,    [key]: val } }));
+  const iPkg  = (key: string, val: string)  => setInstallForm((f: any) => ({ ...f, packageItems:{ ...f.packageItems,[key]: val } }));
+  const iWell = (key: string, val: string)  => setInstallForm((f: any) => ({ ...f, wellData:    { ...f.wellData,    [key]: val } }));
+  const iAct  = (key: string, val: boolean) => setInstallForm((f: any) => ({ ...f, activitiesPerformed: { ...f.activitiesPerformed, [key]: val } }));
+  const iTeam = (idx: number, val: string)  => setInstallForm((f: any) => {
+    const t = [...f.installationTeam]; t[idx] = val; return { ...f, installationTeam: t };
+  });
+
+  // ── Render helpers (NOT components — called as functions to avoid remount) ─
+  const renderCustomerForm = () => (
     <div className="space-y-4">
       {formError && (
         <p className="text-sm text-red-400 bg-red-900/20 border border-red-700/40 px-3 py-2 rounded-lg">{formError}</p>
@@ -199,17 +202,7 @@ export default function Customers() {
     </div>
   );
 
-  const iSet = (key: string, val: any) => setInstallForm((f: any) => ({ ...f, [key]: val }));
-  const iPump = (key: string, val: string) => setInstallForm((f: any) => ({ ...f, pumpData: { ...f.pumpData, [key]: val } }));
-  const iPkg  = (key: string, val: string) => setInstallForm((f: any) => ({ ...f, packageItems: { ...f.packageItems, [key]: val } }));
-  const iWell = (key: string, val: string) => setInstallForm((f: any) => ({ ...f, wellData: { ...f.wellData, [key]: val } }));
-  const iAct  = (key: string, val: boolean) => setInstallForm((f: any) => ({ ...f, activitiesPerformed: { ...f.activitiesPerformed, [key]: val } }));
-  const iTeam = (idx: number, val: string) => setInstallForm((f: any) => {
-    const t = [...f.installationTeam]; t[idx] = val; return { ...f, installationTeam: t };
-  });
-
-  // ── Inline installation form ───────────────────────────────────────────────
-  const InstallFormInline = () => (
+  const renderInstallForm = () => (
     <div className="border border-surface-border rounded-xl p-4 mt-3 space-y-5 bg-surface">
       <h4 className="text-sm font-semibold text-white">New Installation</h4>
       {installError && (
@@ -351,10 +344,8 @@ export default function Customers() {
     </div>
   );
 
-  // ── Customer detail panel content ─────────────────────────────────────────
-  const CustomerPanel = () => (
+  const renderCustomerPanel = () => (
     <div className="flex flex-col h-full">
-      {/* Panel header */}
       <div className="flex items-center justify-between mb-4">
         <div className="min-w-0">
           <h3 className="font-semibold text-white truncate">{selected?.fullName}</h3>
@@ -374,7 +365,6 @@ export default function Customers() {
         </p>
       )}
 
-      {/* Add installation toggle button */}
       <button
         className="flex items-center justify-center gap-2 btn-primary w-full mb-4"
         onClick={() => { setShowInstallForm((v) => !v); setInstallForm({ ...EMPTY_INSTALL }); setInstallError(''); }}
@@ -384,10 +374,8 @@ export default function Customers() {
         {showInstallForm ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </button>
 
-      {/* Inline installation form */}
-      {showInstallForm && <InstallFormInline />}
+      {showInstallForm && renderInstallForm()}
 
-      {/* Existing installations */}
       <div className="mt-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
           Installations ({customerInstalls.length})
@@ -434,10 +422,10 @@ export default function Customers() {
     </div>
   );
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Layout>
       <div className="space-y-4">
-        {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-white">Customers</h1>
@@ -451,13 +439,11 @@ export default function Customers() {
           </button>
         </div>
 
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input className="form-input pl-9" placeholder="Search by name, phone, region…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
 
-        {/* Desktop: side-by-side; Mobile: stacked with slide-up panel */}
         <div className="flex gap-4">
           {/* Customer list */}
           <div className={`flex-1 min-w-0 space-y-2 ${selected ? 'hidden lg:block' : ''}`}>
@@ -511,20 +497,20 @@ export default function Customers() {
           {selected && (
             <div className="hidden lg:block w-96 shrink-0">
               <div className="card sticky top-0 overflow-y-auto max-h-[calc(100vh-8rem)]">
-                <CustomerPanel />
+                {renderCustomerPanel()}
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Mobile panel — full screen slide-up */}
+      {/* Mobile panel */}
       {panelOpen && selected && (
         <div className="lg:hidden fixed inset-0 z-50 flex flex-col">
           <div className="flex-1 bg-black/50" onClick={() => { setSelected(null); setPanelOpen(false); }} />
           <div className="bg-surface-card border-t border-surface-border rounded-t-2xl max-h-[85vh] overflow-y-auto p-5">
             <div className="w-10 h-1 bg-surface-border rounded-full mx-auto mb-4" />
-            <CustomerPanel />
+            {renderCustomerPanel()}
           </div>
         </div>
       )}
@@ -532,7 +518,7 @@ export default function Customers() {
       {/* Create Customer Modal */}
       {showCreate && (
         <Modal title="Add Customer" onClose={() => setShowCreate(false)}>
-          <CustomerFormFields />
+          {renderCustomerForm()}
           <div className="flex gap-3 mt-5">
             <button className="btn-ghost flex-1" onClick={() => setShowCreate(false)}>Cancel</button>
             <button className="btn-primary flex-1" onClick={saveCustomer} disabled={saving}>
@@ -545,7 +531,7 @@ export default function Customers() {
       {/* Edit Customer Modal */}
       {editCustomer && (
         <Modal title="Edit Customer" onClose={() => setEditCustomer(null)}>
-          <CustomerFormFields />
+          {renderCustomerForm()}
           <div className="flex gap-3 mt-5">
             <button className="btn-ghost flex-1" onClick={() => setEditCustomer(null)}>Cancel</button>
             <button className="btn-primary flex-1" onClick={saveCustomer} disabled={saving}>
