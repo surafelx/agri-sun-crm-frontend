@@ -30,30 +30,68 @@ const ACTIVITIES: [string, string][] = [
   ['practicalTraining', 'Practical Training'],
 ];
 
-export default function Customers() {
-  const [list, setList]         = useState<any[]>([]);
-  const [total, setTotal]       = useState(0);
-  const [search, setSearch]     = useState('');
-  const [loading, setLoading]   = useState(true);
+// helpers to build a clean installation body for the API
+const buildInstallBody = (f: any, customerId: string) => ({
+  ...f,
+  customer: customerId,
+  installationDate: f.installationDate || null,
+  wellData: {
+    diameter:   f.wellData.diameter   !== '' ? Number(f.wellData.diameter)   : null,
+    depth:      f.wellData.depth      !== '' ? Number(f.wellData.depth)      : null,
+    waterLevel: f.wellData.waterLevel !== '' ? Number(f.wellData.waterLevel) : null,
+    casingSize: f.wellData.casingSize,
+    casingType: f.wellData.casingType,
+  },
+  installationTeam: f.installationTeam.filter((t: string) => t.trim() !== ''),
+});
 
+type InstallCtx = {
+  f: any;
+  set:  (k: string, v: any)     => void;
+  pump: (k: string, v: string)  => void;
+  pkg:  (k: string, v: string)  => void;
+  well: (k: string, v: string)  => void;
+  act:  (k: string, v: boolean) => void;
+  team: (i: number, v: string)  => void;
+  err:  string;
+  onSave?:   () => void;
+  onCancel?: () => void;
+  isSaving?: boolean;
+};
+
+export default function Customers() {
+  // ── List ──────────────────────────────────────────────────────────────────
+  const [list, setList]       = useState<any[]>([]);
+  const [total, setTotal]     = useState(0);
+  const [search, setSearch]   = useState('');
+  const [loading, setLoading] = useState(true);
+
+  // ── Customer create / edit form ───────────────────────────────────────────
   const [showCreate, setShowCreate]     = useState(false);
   const [editCustomer, setEditCustomer] = useState<any>(null);
   const [form, setForm]                 = useState({ ...EMPTY_CUSTOMER });
   const [saving, setSaving]             = useState(false);
   const [formError, setFormError]       = useState('');
 
+  // Installation bundled with new customer
+  const [showCreateInstall, setShowCreateInstall]       = useState(false);
+  const [createInstallForm, setCreateInstallForm]       = useState<any>({ ...EMPTY_INSTALL });
+  const [createInstallError, setCreateInstallError]     = useState('');
+
+  // ── Delete ────────────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
+  // ── Customer panel (selected customer) ───────────────────────────────────
   const [selected, setSelected]               = useState<any>(null);
   const [customerInstalls, setCustomerInstalls] = useState<any[]>([]);
   const [loadingInstalls, setLoadingInstalls]   = useState(false);
+  const [panelOpen, setPanelOpen]               = useState(false);
 
+  // Installation form inside panel
   const [showInstallForm, setShowInstallForm] = useState(false);
   const [installForm, setInstallForm]         = useState<any>({ ...EMPTY_INSTALL });
   const [savingInstall, setSavingInstall]     = useState(false);
   const [installError, setInstallError]       = useState('');
-
-  const [panelOpen, setPanelOpen] = useState(false);
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const load = async () => {
@@ -86,9 +124,30 @@ export default function Customers() {
         latitude:  form.latitude  !== '' ? Number(form.latitude)  : null,
         longitude: form.longitude !== '' ? Number(form.longitude) : null,
       };
-      if (editCustomer) await cApi.update(editCustomer._id, body);
-      else              await cApi.create(body);
-      setShowCreate(false); setEditCustomer(null); setForm({ ...EMPTY_CUSTOMER });
+
+      if (editCustomer) {
+        await cApi.update(editCustomer._id, body);
+      } else {
+        const r = await cApi.create(body);
+        // Optionally create installation in the same flow
+        if (showCreateInstall) {
+          try {
+            await iApi.create(buildInstallBody(createInstallForm, r.data.customer._id));
+          } catch (e: any) {
+            setCreateInstallError(e.response?.data?.message || 'Customer saved but installation failed');
+            setSaving(false);
+            load();
+            return;
+          }
+        }
+      }
+
+      setShowCreate(false);
+      setEditCustomer(null);
+      setForm({ ...EMPTY_CUSTOMER });
+      setShowCreateInstall(false);
+      setCreateInstallForm({ ...EMPTY_INSTALL });
+      setCreateInstallError('');
       load();
     } catch (e: any) {
       setFormError(e.response?.data?.message || 'Error saving customer');
@@ -118,20 +177,7 @@ export default function Customers() {
   const saveInstallation = async () => {
     setInstallError(''); setSavingInstall(true);
     try {
-      const body = {
-        ...installForm,
-        customer: selected._id,
-        installationDate: installForm.installationDate || null,
-        wellData: {
-          diameter:   installForm.wellData.diameter   !== '' ? Number(installForm.wellData.diameter)   : null,
-          depth:      installForm.wellData.depth      !== '' ? Number(installForm.wellData.depth)      : null,
-          waterLevel: installForm.wellData.waterLevel !== '' ? Number(installForm.wellData.waterLevel) : null,
-          casingSize: installForm.wellData.casingSize,
-          casingType: installForm.wellData.casingType,
-        },
-        installationTeam: installForm.installationTeam.filter((t: string) => t.trim() !== ''),
-      };
-      await iApi.create(body);
+      await iApi.create(buildInstallBody(installForm, selected._id));
       setShowInstallForm(false);
       setInstallForm({ ...EMPTY_INSTALL });
       const r = await cApi.installations(selected._id);
@@ -141,17 +187,25 @@ export default function Customers() {
     } finally { setSavingInstall(false); }
   };
 
-  // ── Install form helpers ───────────────────────────────────────────────────
-  const iSet  = (key: string, val: any)     => setInstallForm((f: any) => ({ ...f, [key]: val }));
-  const iPump = (key: string, val: string)  => setInstallForm((f: any) => ({ ...f, pumpData:    { ...f.pumpData,    [key]: val } }));
-  const iPkg  = (key: string, val: string)  => setInstallForm((f: any) => ({ ...f, packageItems:{ ...f.packageItems,[key]: val } }));
-  const iWell = (key: string, val: string)  => setInstallForm((f: any) => ({ ...f, wellData:    { ...f.wellData,    [key]: val } }));
-  const iAct  = (key: string, val: boolean) => setInstallForm((f: any) => ({ ...f, activitiesPerformed: { ...f.activitiesPerformed, [key]: val } }));
-  const iTeam = (idx: number, val: string)  => setInstallForm((f: any) => {
-    const t = [...f.installationTeam]; t[idx] = val; return { ...f, installationTeam: t };
+  // ── Helpers — panel install form ──────────────────────────────────────────
+  const mkCtx = (
+    f: any,
+    setF: React.Dispatch<React.SetStateAction<any>>,
+    err: string,
+    onSave?: () => void,
+    onCancel?: () => void,
+    isSaving?: boolean,
+  ): InstallCtx => ({
+    f, err, onSave, onCancel, isSaving,
+    set:  (k, v) => setF((p: any) => ({ ...p, [k]: v })),
+    pump: (k, v) => setF((p: any) => ({ ...p, pumpData:    { ...p.pumpData,    [k]: v } })),
+    pkg:  (k, v) => setF((p: any) => ({ ...p, packageItems:{ ...p.packageItems,[k]: v } })),
+    well: (k, v) => setF((p: any) => ({ ...p, wellData:    { ...p.wellData,    [k]: v } })),
+    act:  (k, v) => setF((p: any) => ({ ...p, activitiesPerformed: { ...p.activitiesPerformed, [k]: v } })),
+    team: (i, v) => setF((p: any) => { const t = [...p.installationTeam]; t[i] = v; return { ...p, installationTeam: t }; }),
   });
 
-  // ── Render helpers (NOT components — called as functions to avoid remount) ─
+  // ── Render helpers ─────────────────────────────────────────────────────────
   const renderCustomerForm = () => (
     <div className="space-y-4">
       {formError && (
@@ -202,225 +256,236 @@ export default function Customers() {
     </div>
   );
 
-  const renderInstallForm = () => (
-    <div className="border border-surface-border rounded-xl p-4 mt-3 space-y-5 bg-surface">
-      <h4 className="text-sm font-semibold text-white">New Installation</h4>
-      {installError && (
-        <p className="text-xs text-red-400 bg-red-900/20 border border-red-700/40 px-3 py-2 rounded-lg">{installError}</p>
-      )}
+  const renderInstallForm = (ctx: InstallCtx) => {
+    const { f, set, pump, pkg, well, act, team, err, onSave, onCancel, isSaving } = ctx;
+    return (
+      <div className="space-y-5">
+        {err && <p className="text-xs text-red-400 bg-red-900/20 border border-red-700/40 px-3 py-2 rounded-lg">{err}</p>}
 
-      {/* Project */}
-      <div className="space-y-3">
-        <div>
-          <label className="form-label">Project Title</label>
-          <input className="form-input" value={installForm.projectTitle} onChange={(e) => iSet('projectTitle', e.target.value)} placeholder="e.g. Supply and Install solar powered submersable pumps" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Project */}
+        <div className="space-y-3">
           <div>
-            <label className="form-label">Project Category</label>
-            <input className="form-input" value={installForm.projectCategory} onChange={(e) => iSet('projectCategory', e.target.value)} placeholder="e.g. Solar water Pump" />
+            <label className="form-label">Project Title</label>
+            <input className="form-input" value={f.projectTitle} onChange={(e) => set('projectTitle', e.target.value)} placeholder="e.g. Supply and Install solar powered submersable pumps" />
           </div>
-          <div>
-            <label className="form-label">Site Name</label>
-            <input className="form-input" value={installForm.siteName} onChange={(e) => iSet('siteName', e.target.value)} placeholder="e.g. Galo argisa" />
-          </div>
-        </div>
-        <div>
-          <label className="form-label">Geo Location</label>
-          <input className="form-input" value={installForm.geoLocation} onChange={(e) => iSet('geoLocation', e.target.value)} placeholder="e.g. X:431849, Y:778586, Z:1683" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="form-label">End User Name</label>
-            <input className="form-input" value={installForm.endUserName} onChange={(e) => iSet('endUserName', e.target.value)} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Project Category</label>
+              <input className="form-input" value={f.projectCategory} onChange={(e) => set('projectCategory', e.target.value)} placeholder="e.g. Solar water Pump" />
+            </div>
+            <div>
+              <label className="form-label">Site Name</label>
+              <input className="form-input" value={f.siteName} onChange={(e) => set('siteName', e.target.value)} placeholder="e.g. Galo argisa" />
+            </div>
           </div>
           <div>
-            <label className="form-label">End User Phone</label>
-            <input className="form-input" value={installForm.endUserPhone} onChange={(e) => iSet('endUserPhone', e.target.value)} placeholder="09xxxxxxxx" />
+            <label className="form-label">Geo Location</label>
+            <input className="form-input" value={f.geoLocation} onChange={(e) => set('geoLocation', e.target.value)} placeholder="e.g. X:431849, Y:778586, Z:1683" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">End User Name</label>
+              <input className="form-input" value={f.endUserName} onChange={(e) => set('endUserName', e.target.value)} />
+            </div>
+            <div>
+              <label className="form-label">End User Phone</label>
+              <input className="form-input" value={f.endUserPhone} onChange={(e) => set('endUserPhone', e.target.value)} placeholder="09xxxxxxxx" />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Pump */}
-      <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Pump Details</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {([['type','Pump Type'],['brand','Brand'],['model','Model'],['serialNumber','Serial Number'],['power','Pump Power'],['maxDischarge','Max Discharge'],['maxHead','Max Head'],['controller','Controller'],['solarPanel','Solar Panel']] as [string,string][]).map(([k, lbl]) => (
-            <div key={k}>
-              <label className="form-label">{lbl}</label>
-              <input className="form-input" value={installForm.pumpData[k]} onChange={(e) => iPump(k, e.target.value)} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Well Data */}
-      <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Well Data</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {([['diameter','Diameter (m)'],['depth','Depth (m)'],['waterLevel','Water Level (m)'],['casingSize','Casing Size'],['casingType','Casing Type']] as [string,string][]).map(([k, lbl]) => (
-            <div key={k}>
-              <label className="form-label">{lbl}</label>
-              <input className="form-input" value={installForm.wellData[k]} onChange={(e) => iWell(k, e.target.value)} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Package Items */}
-      <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Package Items Delivered</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {([['pipe','Pipe'],['acCables','AC Cables'],['dcCables','DC Cables'],['accessories','Accessories'],['pvMountedStructure','PV Mounted Structure'],['fence','Fence']] as [string,string][]).map(([k, lbl]) => (
-            <div key={k}>
-              <label className="form-label">{lbl}</label>
-              <input className="form-input" value={installForm.packageItems[k]} onChange={(e) => iPkg(k, e.target.value)} placeholder="Spec / quantity" />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Activities */}
-      <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Activities Performed</p>
-        <div className="grid grid-cols-2 gap-y-2 gap-x-3">
-          {ACTIVITIES.map(([key, label]) => (
-            <label key={key} className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" className="w-4 h-4 accent-primary rounded"
-                checked={installForm.activitiesPerformed[key]}
-                onChange={(e) => iAct(key, e.target.checked)} />
-              <span className="text-sm text-gray-300">{label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Installation Team */}
-      <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Installation Team</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {installForm.installationTeam.map((name: string, idx: number) => (
-            <div key={idx}>
-              <label className="form-label">Technician {idx + 1}</label>
-              <input className="form-input" value={name} onChange={(e) => iTeam(idx, e.target.value)} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Delivery & Status */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Pump */}
         <div>
-          <label className="form-label">Delivered By</label>
-          <input className="form-input" value={installForm.deliveredBy} onChange={(e) => iSet('deliveredBy', e.target.value)} />
-        </div>
-        <div>
-          <label className="form-label">Received By</label>
-          <input className="form-input" value={installForm.receivedBy} onChange={(e) => iSet('receivedBy', e.target.value)} />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="form-label">Installation Date</label>
-          <input className="form-input" type="date" value={installForm.installationDate} onChange={(e) => iSet('installationDate', e.target.value)} />
-        </div>
-        <div>
-          <label className="form-label">Status</label>
-          <select className="form-input" value={installForm.status} onChange={(e) => iSet('status', e.target.value)}>
-            {['Pending','In Progress','Completed','Cancelled'].map((s) => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
-      <div>
-        <label className="form-label">Remarks</label>
-        <textarea className="form-input" rows={2} value={installForm.remarks} onChange={(e) => iSet('remarks', e.target.value)} />
-      </div>
-      <div className="flex gap-3">
-        <button className="btn-ghost flex-1" onClick={() => { setShowInstallForm(false); setInstallForm({ ...EMPTY_INSTALL }); }}>Cancel</button>
-        <button className="btn-primary flex-1" onClick={saveInstallation} disabled={savingInstall}>
-          {savingInstall ? 'Saving…' : 'Create Installation'}
-        </button>
-      </div>
-    </div>
-  );
-
-  const renderCustomerPanel = () => (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4">
-        <div className="min-w-0">
-          <h3 className="font-semibold text-white truncate">{selected?.fullName}</h3>
-          <p className="text-xs text-gray-500 truncate">
-            {[selected?.region, selected?.zone, selected?.woreda].filter(Boolean).join(' · ')}
-          </p>
-        </div>
-        <button onClick={() => { setSelected(null); setPanelOpen(false); }} className="text-gray-500 hover:text-white ml-3 shrink-0">
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
-      {selected?.specificLocation && (
-        <p className="text-xs text-gray-400 mb-3 flex items-start gap-1">
-          <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-primary" />
-          {selected.specificLocation}
-        </p>
-      )}
-
-      <button
-        className="flex items-center justify-center gap-2 btn-primary w-full mb-4"
-        onClick={() => { setShowInstallForm((v) => !v); setInstallForm({ ...EMPTY_INSTALL }); setInstallError(''); }}
-      >
-        <Wrench className="w-4 h-4" />
-        {showInstallForm ? 'Cancel New Installation' : 'Add Installation'}
-        {showInstallForm ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-      </button>
-
-      {showInstallForm && renderInstallForm()}
-
-      <div className="mt-4">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-          Installations ({customerInstalls.length})
-        </p>
-        {loadingInstalls ? (
-          <div className="flex justify-center py-6">
-            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : customerInstalls.length === 0 ? (
-          <p className="text-gray-600 text-sm text-center py-6">No installations yet</p>
-        ) : (
-          <div className="space-y-3">
-            {customerInstalls.map((inst: any) => (
-              <div key={inst._id} className="border border-surface-border rounded-lg p-3 hover:border-primary/40 transition-colors space-y-1.5">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm text-white font-medium leading-snug">{inst.projectTitle || 'Untitled project'}</p>
-                  <StatusBadge status={inst.status} />
-                </div>
-                {inst.projectCategory && <p className="text-xs text-primary">{inst.projectCategory}</p>}
-                {inst.siteName && <p className="text-xs text-gray-400">Site: {inst.siteName}</p>}
-                {inst.endUserName && <p className="text-xs text-gray-500">End user: {inst.endUserName}{inst.endUserPhone ? ` · ${inst.endUserPhone}` : ''}</p>}
-                {inst.installationDate && (
-                  <p className="text-xs text-gray-500">Date: {new Date(inst.installationDate).toLocaleDateString()}</p>
-                )}
-                {inst.pumpData?.brand && (
-                  <p className="text-xs text-gray-500">Pump: {inst.pumpData.brand} {inst.pumpData.model}{inst.pumpData.type ? ` · ${inst.pumpData.type}` : ''}</p>
-                )}
-                {inst.installationTeam?.length > 0 && (
-                  <p className="text-xs text-gray-500">Team: {inst.installationTeam.join(', ')}</p>
-                )}
-                {inst.deliveredBy && <p className="text-xs text-gray-500">Delivered by: {inst.deliveredBy}</p>}
-                <div className="flex flex-wrap gap-1 pt-0.5">
-                  {Object.entries(inst.activitiesPerformed || {}).filter(([, v]) => v).map(([k]) => (
-                    <span key={k} className="text-[10px] bg-surface px-1.5 py-0.5 rounded text-gray-400 border border-surface-border">
-                      {ACTIVITIES.find(([key]) => key === k)?.[1] || k}
-                    </span>
-                  ))}
-                </div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Pump Details</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {([['type','Pump Type'],['brand','Brand'],['model','Model'],['serialNumber','Serial Number'],['power','Pump Power'],['maxDischarge','Max Discharge'],['maxHead','Max Head'],['controller','Controller'],['solarPanel','Solar Panel']] as [string,string][]).map(([k, lbl]) => (
+              <div key={k}>
+                <label className="form-label">{lbl}</label>
+                <input className="form-input" value={f.pumpData[k]} onChange={(e) => pump(k, e.target.value)} />
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Well Data */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Well Data</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {([['diameter','Diameter (m)'],['depth','Depth (m)'],['waterLevel','Water Level (m)'],['casingSize','Casing Size'],['casingType','Casing Type']] as [string,string][]).map(([k, lbl]) => (
+              <div key={k}>
+                <label className="form-label">{lbl}</label>
+                <input className="form-input" value={f.wellData[k]} onChange={(e) => well(k, e.target.value)} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Package Items */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Package Items Delivered</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {([['pipe','Pipe'],['acCables','AC Cables'],['dcCables','DC Cables'],['accessories','Accessories'],['pvMountedStructure','PV Mounted Structure'],['fence','Fence']] as [string,string][]).map(([k, lbl]) => (
+              <div key={k}>
+                <label className="form-label">{lbl}</label>
+                <input className="form-input" value={f.packageItems[k]} onChange={(e) => pkg(k, e.target.value)} placeholder="Spec / quantity" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Activities */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Activities Performed</p>
+          <div className="grid grid-cols-2 gap-y-2 gap-x-3">
+            {ACTIVITIES.map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" className="w-4 h-4 accent-primary rounded"
+                  checked={f.activitiesPerformed[key]}
+                  onChange={(e) => act(key, e.target.checked)} />
+                <span className="text-sm text-gray-300">{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Team */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Installation Team</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {f.installationTeam.map((name: string, idx: number) => (
+              <div key={idx}>
+                <label className="form-label">Technician {idx + 1}</label>
+                <input className="form-input" value={name} onChange={(e) => team(idx, e.target.value)} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Delivery & Status */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Delivered By</label>
+            <input className="form-input" value={f.deliveredBy} onChange={(e) => set('deliveredBy', e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Received By</label>
+            <input className="form-input" value={f.receivedBy} onChange={(e) => set('receivedBy', e.target.value)} />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="form-label">Installation Date</label>
+            <input className="form-input" type="date" value={f.installationDate} onChange={(e) => set('installationDate', e.target.value)} />
+          </div>
+          <div>
+            <label className="form-label">Status</label>
+            <select className="form-input" value={f.status} onChange={(e) => set('status', e.target.value)}>
+              {['Pending','In Progress','Completed','Cancelled'].map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="form-label">Remarks</label>
+          <textarea className="form-input" rows={2} value={f.remarks} onChange={(e) => set('remarks', e.target.value)} />
+        </div>
+
+        {/* Panel save/cancel buttons — only shown when onSave is provided */}
+        {onSave && (
+          <div className="flex gap-3">
+            <button className="btn-ghost flex-1" onClick={onCancel}>Cancel</button>
+            <button className="btn-primary flex-1" onClick={onSave} disabled={isSaving}>
+              {isSaving ? 'Saving…' : 'Create Installation'}
+            </button>
+          </div>
         )}
       </div>
-    </div>
-  );
+    );
+  };
+
+  const renderCustomerPanel = () => {
+    const ctx = mkCtx(
+      installForm, setInstallForm, installError,
+      saveInstallation,
+      () => { setShowInstallForm(false); setInstallForm({ ...EMPTY_INSTALL }); },
+      savingInstall,
+    );
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between mb-4">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-white truncate">{selected?.fullName}</h3>
+            <p className="text-xs text-gray-500 truncate">
+              {[selected?.region, selected?.zone, selected?.woreda].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <button onClick={() => { setSelected(null); setPanelOpen(false); }} className="text-gray-500 hover:text-white ml-3 shrink-0">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {selected?.specificLocation && (
+          <p className="text-xs text-gray-400 mb-3 flex items-start gap-1">
+            <MapPin className="w-3 h-3 mt-0.5 shrink-0 text-primary" />
+            {selected.specificLocation}
+          </p>
+        )}
+
+        <button
+          className="flex items-center justify-center gap-2 btn-primary w-full mb-4"
+          onClick={() => { setShowInstallForm((v) => !v); setInstallForm({ ...EMPTY_INSTALL }); setInstallError(''); }}
+        >
+          <Wrench className="w-4 h-4" />
+          {showInstallForm ? 'Cancel New Installation' : 'Add Installation'}
+          {showInstallForm ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+
+        {showInstallForm && (
+          <div className="border border-surface-border rounded-xl p-4 mt-3 bg-surface mb-2">
+            <h4 className="text-sm font-semibold text-white mb-4">New Installation</h4>
+            {renderInstallForm(ctx)}
+          </div>
+        )}
+
+        <div className="mt-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            Installations ({customerInstalls.length})
+          </p>
+          {loadingInstalls ? (
+            <div className="flex justify-center py-6">
+              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : customerInstalls.length === 0 ? (
+            <p className="text-gray-600 text-sm text-center py-6">No installations yet</p>
+          ) : (
+            <div className="space-y-3">
+              {customerInstalls.map((inst: any) => (
+                <div key={inst._id} className="border border-surface-border rounded-lg p-3 hover:border-primary/40 transition-colors space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm text-white font-medium leading-snug">{inst.projectTitle || 'Untitled project'}</p>
+                    <StatusBadge status={inst.status} />
+                  </div>
+                  {inst.projectCategory && <p className="text-xs text-primary">{inst.projectCategory}</p>}
+                  {inst.siteName && <p className="text-xs text-gray-400">Site: {inst.siteName}</p>}
+                  {inst.endUserName && <p className="text-xs text-gray-500">End user: {inst.endUserName}{inst.endUserPhone ? ` · ${inst.endUserPhone}` : ''}</p>}
+                  {inst.installationDate && <p className="text-xs text-gray-500">Date: {new Date(inst.installationDate).toLocaleDateString()}</p>}
+                  {inst.pumpData?.brand && <p className="text-xs text-gray-500">Pump: {inst.pumpData.brand} {inst.pumpData.model}{inst.pumpData.type ? ` · ${inst.pumpData.type}` : ''}</p>}
+                  {inst.installationTeam?.length > 0 && <p className="text-xs text-gray-500">Team: {inst.installationTeam.join(', ')}</p>}
+                  {inst.deliveredBy && <p className="text-xs text-gray-500">Delivered by: {inst.deliveredBy}</p>}
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {Object.entries(inst.activitiesPerformed || {}).filter(([, v]) => v).map(([k]) => (
+                      <span key={k} className="text-[10px] bg-surface px-1.5 py-0.5 rounded text-gray-400 border border-surface-border">
+                        {ACTIVITIES.find(([key]) => key === k)?.[1] || k}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -432,7 +497,7 @@ export default function Customers() {
             <p className="text-sm text-gray-400">{total} total</p>
           </div>
           <button className="btn-primary flex items-center gap-2 shrink-0"
-            onClick={() => { setForm({ ...EMPTY_CUSTOMER }); setFormError(''); setShowCreate(true); }}>
+            onClick={() => { setForm({ ...EMPTY_CUSTOMER }); setFormError(''); setShowCreateInstall(false); setCreateInstallForm({ ...EMPTY_INSTALL }); setCreateInstallError(''); setShowCreate(true); }}>
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Add Customer</span>
             <span className="sm:hidden">Add</span>
@@ -445,7 +510,6 @@ export default function Customers() {
         </div>
 
         <div className="flex gap-4">
-          {/* Customer list */}
           <div className={`flex-1 min-w-0 space-y-2 ${selected ? 'hidden lg:block' : ''}`}>
             {loading ? (
               <div className="flex items-center justify-center h-40">
@@ -493,7 +557,6 @@ export default function Customers() {
             ))}
           </div>
 
-          {/* Desktop panel */}
           {selected && (
             <div className="hidden lg:block w-96 shrink-0">
               <div className="card sticky top-0 overflow-y-auto max-h-[calc(100vh-8rem)]">
@@ -517,12 +580,33 @@ export default function Customers() {
 
       {/* Create Customer Modal */}
       {showCreate && (
-        <Modal title="Add Customer" onClose={() => setShowCreate(false)}>
+        <Modal title="Add Customer" onClose={() => setShowCreate(false)} wide>
           {renderCustomerForm()}
+
+          {/* Toggle installation section */}
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={() => { setShowCreateInstall((v) => !v); setCreateInstallForm({ ...EMPTY_INSTALL }); setCreateInstallError(''); }}
+              className="flex items-center gap-2 w-full px-4 py-2.5 rounded-lg border border-dashed border-surface-border text-gray-400 hover:border-primary/50 hover:text-primary transition-colors text-sm"
+            >
+              <Wrench className="w-4 h-4" />
+              {showCreateInstall ? 'Remove Installation' : '+ Add Installation to this customer'}
+              {showCreateInstall ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
+            </button>
+
+            {showCreateInstall && (
+              <div className="mt-3 border border-surface-border rounded-xl p-4 bg-surface space-y-1">
+                <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-3">Installation Details</p>
+                {renderInstallForm(mkCtx(createInstallForm, setCreateInstallForm, createInstallError))}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-3 mt-5">
             <button className="btn-ghost flex-1" onClick={() => setShowCreate(false)}>Cancel</button>
             <button className="btn-primary flex-1" onClick={saveCustomer} disabled={saving}>
-              {saving ? 'Saving…' : 'Create Customer'}
+              {saving ? 'Saving…' : showCreateInstall ? 'Save Customer & Installation' : 'Create Customer'}
             </button>
           </div>
         </Modal>
