@@ -139,7 +139,7 @@ export default function Installations() {
               <label className="form-label">Project Title</label>
               <input className="form-input" value={editForm.projectTitle} onChange={(e) => setEditForm({ ...editForm, projectTitle: e.target.value })} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Status</label>
                 <select className="form-input" value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
@@ -151,7 +151,7 @@ export default function Installations() {
                 <input className="form-input" type="date" value={editForm.installationDate} onChange={(e) => setEditForm({ ...editForm, installationDate: e.target.value })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="form-label">Delivered By</label>
                 <input className="form-input" value={editForm.deliveredBy} onChange={(e) => setEditForm({ ...editForm, deliveredBy: e.target.value })} />
