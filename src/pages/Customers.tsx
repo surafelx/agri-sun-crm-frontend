@@ -4,6 +4,7 @@ import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import { customers as cApi, installations as iApi } from '../lib/api';
 import { Plus, Search, MapPin, Phone, ChevronRight, Wrench, X, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+// ChevronDown/Up used in create-customer install toggle
 
 const EMPTY_CUSTOMER = {
   fullName: '', phone: '', region: '', zone: '', woreda: '',
@@ -87,11 +88,11 @@ export default function Customers() {
   const [loadingInstalls, setLoadingInstalls]   = useState(false);
   const [panelOpen, setPanelOpen]               = useState(false);
 
-  // Installation form inside panel
-  const [showInstallForm, setShowInstallForm] = useState(false);
-  const [installForm, setInstallForm]         = useState<any>({ ...EMPTY_INSTALL });
-  const [savingInstall, setSavingInstall]     = useState(false);
-  const [installError, setInstallError]       = useState('');
+  // Installation modal
+  const [installModalOpen, setInstallModalOpen] = useState(false);
+  const [installForm, setInstallForm]           = useState<any>({ ...EMPTY_INSTALL });
+  const [savingInstall, setSavingInstall]       = useState(false);
+  const [installError, setInstallError]         = useState('');
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const load = async () => {
@@ -165,7 +166,7 @@ export default function Customers() {
   const selectCustomer = async (c: any) => {
     setSelected(c);
     setPanelOpen(true);
-    setShowInstallForm(false);
+    setInstallModalOpen(false);
     setInstallForm({ ...EMPTY_INSTALL });
     setLoadingInstalls(true);
     setCustomerInstalls([]);
@@ -178,7 +179,7 @@ export default function Customers() {
     setInstallError(''); setSavingInstall(true);
     try {
       await iApi.create(buildInstallBody(installForm, selected._id));
-      setShowInstallForm(false);
+      setInstallModalOpen(false);
       setInstallForm({ ...EMPTY_INSTALL });
       const r = await cApi.installations(selected._id);
       setCustomerInstalls(r.data.installations);
@@ -402,14 +403,7 @@ export default function Customers() {
     );
   };
 
-  const renderCustomerPanel = () => {
-    const ctx = mkCtx(
-      installForm, setInstallForm, installError,
-      saveInstallation,
-      () => { setShowInstallForm(false); setInstallForm({ ...EMPTY_INSTALL }); },
-      savingInstall,
-    );
-    return (
+  const renderCustomerPanel = () => (
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between mb-4">
           <div className="min-w-0">
@@ -432,19 +426,11 @@ export default function Customers() {
 
         <button
           className="flex items-center justify-center gap-2 btn-primary w-full mb-4"
-          onClick={() => { setShowInstallForm((v) => !v); setInstallForm({ ...EMPTY_INSTALL }); setInstallError(''); }}
+          onClick={() => { setInstallForm({ ...EMPTY_INSTALL }); setInstallError(''); setInstallModalOpen(true); }}
         >
           <Wrench className="w-4 h-4" />
-          {showInstallForm ? 'Cancel New Installation' : 'Add Installation'}
-          {showInstallForm ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          Add Installation
         </button>
-
-        {showInstallForm && (
-          <div className="border border-surface-border rounded-xl p-4 mt-3 bg-surface mb-2">
-            <h4 className="text-sm font-semibold text-white mb-4">New Installation</h4>
-            {renderInstallForm(ctx)}
-          </div>
-        )}
 
         <div className="mt-4">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
@@ -484,8 +470,7 @@ export default function Customers() {
           )}
         </div>
       </div>
-    );
-  };
+  );
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -576,6 +561,18 @@ export default function Customers() {
             {renderCustomerPanel()}
           </div>
         </div>
+      )}
+
+      {/* Add Installation Modal */}
+      {installModalOpen && selected && (
+        <Modal title={`New Installation — ${selected.fullName}`} onClose={() => setInstallModalOpen(false)} wide>
+          {renderInstallForm(mkCtx(
+            installForm, setInstallForm, installError,
+            saveInstallation,
+            () => setInstallModalOpen(false),
+            savingInstall,
+          ))}
+        </Modal>
       )}
 
       {/* Create Customer Modal */}
