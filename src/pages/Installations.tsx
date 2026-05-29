@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
+import Attachments, { AttachmentStrip, type Attachment } from '../components/Attachments';
 import { installations as iApi } from '../lib/api';
 import { Search, Pencil, Trash2 } from 'lucide-react';
 
@@ -77,6 +78,7 @@ export default function Installations() {
       installationTeam: i.installationTeam?.length
         ? [...i.installationTeam, '', ''].slice(0, 3)
         : ['', '', ''],
+      attachments: i.attachments || [],
     });
     setEditItem(i);
   };
@@ -181,6 +183,7 @@ export default function Installations() {
                         <span key={k} className="text-[10px] bg-surface px-1.5 py-0.5 rounded text-gray-400 border border-surface-border">{ACT_LABELS[k] || k}</span>
                       ))}
                     </div>
+                    <AttachmentStrip items={inst.attachments || []} />
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button onClick={() => openEdit(inst)} className="p-1.5 text-gray-500 hover:text-primary rounded-lg hover:bg-primary/10 transition-colors">
@@ -300,6 +303,13 @@ export default function Installations() {
               <label className="form-label">Remarks</label>
               <textarea className="form-input" rows={3} value={editForm.remarks} onChange={(e) => ef('remarks', e.target.value)} />
             </div>
+
+            <Attachments
+              value={editForm.attachments || []}
+              onChange={(items: Attachment[]) => ef('attachments', items)}
+              folder="installations"
+              label="Attachments / Documents"
+            />
 
             <div className="flex gap-3 pt-1">
               <button className="btn-ghost flex-1" onClick={() => setEditItem(null)}>Cancel</button>

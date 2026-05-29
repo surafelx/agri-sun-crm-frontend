@@ -65,6 +65,20 @@ export const equipment = {
   deleteSubcategory: (id: string)   => api.delete(`/equipment/subcategories/${id}`),
 };
 
+// ── Uploads ──────────────────────────────────────────────────────────────────
+export const uploads = {
+  upload: (file: File, folder?: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    const params = folder ? `?folder=${encodeURIComponent(folder)}` : '';
+    return api.post(`/upload${params}`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  delete: (publicId: string) => {
+    const encoded = btoa(publicId);
+    return api.delete(`/upload/${encoded}`);
+  },
+};
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const dashboard = {
   stats:              () => api.get('/dashboard/stats'),

@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
+import Attachments, { AttachmentStrip, type Attachment } from '../components/Attachments';
 import { customers as cApi, installations as iApi, equipment as eApi } from '../lib/api';
 import { Plus, Search, MapPin, Phone, ChevronRight, Wrench, X, Pencil, Trash2, ChevronDown, ChevronUp, UserPlus, Trash } from 'lucide-react';
 
 const EMPTY_CUSTOMER = {
   fullName: '', phone: '', region: '', zone: '', woreda: '',
   specificLocation: '', latitude: '', longitude: '', notes: '',
+  attachments: [] as Attachment[],
 };
 
 const EMPTY_INSTALL = {
@@ -24,6 +26,7 @@ const EMPTY_INSTALL = {
     casing: false, solarPump: false, testing: false,
     solarPanelStructure: false, sprinkler: false, practicalTraining: false,
   },
+  attachments: [] as Attachment[],
 };
 
 const EMPTY_EQUIP_ITEM = { category: '', subcategory: '', categoryName: '', subcategoryName: '', quantity: '', specs: '' };
@@ -61,6 +64,7 @@ type InstallCtx = {
   team: (i: number, v: string)  => void;
   setEquip: (items: any[]) => void;
   setEndUsers: (users: any[]) => void;
+  setAttachments: (items: Attachment[]) => void;
   categories: any[];
   subcategories: any[];
   err:  string;
@@ -130,6 +134,7 @@ export default function Customers() {
       specificLocation: c.specificLocation || '',
       latitude: c.latitude ?? '', longitude: c.longitude ?? '',
       notes: c.notes || '',
+      attachments: c.attachments || [],
     });
     setEditCustomer(c);
     setFormError('');
@@ -222,8 +227,9 @@ export default function Customers() {
     well: (k, v) => setF((p: any) => ({ ...p, wellData:    { ...p.wellData,    [k]: v } })),
     act:  (k, v) => setF((p: any) => ({ ...p, activitiesPerformed: { ...p.activitiesPerformed, [k]: v } })),
     team: (i, v) => setF((p: any) => { const t = [...p.installationTeam]; t[i] = v; return { ...p, installationTeam: t }; }),
-    setEquip:    (items) => setF((p: any) => ({ ...p, equipment: items })),
-    setEndUsers: (users) => setF((p: any) => ({ ...p, endUsers: users })),
+    setEquip:        (items) => setF((p: any) => ({ ...p, equipment: items })),
+    setEndUsers:     (users) => setF((p: any) => ({ ...p, endUsers: users })),
+    setAttachments:  (items) => setF((p: any) => ({ ...p, attachments: items })),
   });
 
   // ── Render helpers ─────────────────────────────────────────────────────────
@@ -274,11 +280,17 @@ export default function Customers() {
         <label className="form-label">Notes</label>
         <textarea className="form-input" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Additional notes…" />
       </div>
+      <Attachments
+        value={form.attachments || []}
+        onChange={(items) => setForm((f: any) => ({ ...f, attachments: items }))}
+        folder="customers"
+        label="Attachments / Documents"
+      />
     </div>
   );
 
   const renderInstallForm = (ctx: InstallCtx) => {
-    const { f, set, pump, pkg, well, act, team, setEquip, setEndUsers, categories, subcategories, err, onSave, onCancel, isSaving } = ctx;
+    const { f, set, pump, pkg, well, act, team, setEquip, setEndUsers, setAttachments, categories, subcategories, err, onSave, onCancel, isSaving } = ctx;
 
     const updateEquipItem = (idx: number, field: string, value: string) => {
       const items = [...(f.equipment || [])];
@@ -507,6 +519,14 @@ export default function Customers() {
           <textarea className="form-input" rows={2} value={f.remarks} onChange={(e) => set('remarks', e.target.value)} />
         </div>
 
+        {/* Attachments */}
+        <Attachments
+          value={f.attachments || []}
+          onChange={setAttachments}
+          folder="installations"
+          label="Attachments / Documents"
+        />
+
         {onSave && (
           <div className="flex gap-3">
             <button className="btn-ghost flex-1" onClick={onCancel}>Cancel</button>
@@ -592,6 +612,7 @@ export default function Customers() {
                       </span>
                     ))}
                   </div>
+                  <AttachmentStrip items={inst.attachments || []} />
                 </div>
               ))}
             </div>
