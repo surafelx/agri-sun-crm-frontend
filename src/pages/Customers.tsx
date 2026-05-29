@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
-import { customers as cApi, installations as iApi } from '../lib/api';
-import { Plus, Search, MapPin, Phone, ChevronRight, Wrench, X, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
-// ChevronDown/Up used in create-customer install toggle
+import { customers as cApi, installations as iApi, equipment as eApi } from '../lib/api';
+import { Plus, Search, MapPin, Phone, ChevronRight, Wrench, X, Pencil, Trash2, ChevronDown, ChevronUp, UserPlus, Trash } from 'lucide-react';
 
 const EMPTY_CUSTOMER = {
   fullName: '', phone: '', region: '', zone: '', woreda: '',
@@ -13,8 +12,10 @@ const EMPTY_CUSTOMER = {
 
 const EMPTY_INSTALL = {
   projectTitle: '', projectCategory: '', status: 'Pending',
-  siteName: '', geoLocation: '', endUserName: '', endUserPhone: '',
+  siteName: '', geoLocation: '',
+  endUsers: [{ name: '', phone: '' }],
   deliveredBy: '', receivedBy: '', installationDate: '', remarks: '',
+  equipment: [] as any[],
   wellData: { diameter: '', depth: '', waterLevel: '', casingSize: '', casingType: '' },
   pumpData: { type: '', serialNumber: '', brand: '', model: '', power: '', maxDischarge: '', maxHead: '', controller: '', solarPanel: '' },
   packageItems: { pipe: '', acCables: '', dcCables: '', accessories: '', pvMountedStructure: '', fence: '' },
@@ -24,6 +25,8 @@ const EMPTY_INSTALL = {
     solarPanelStructure: false, sprinkler: false, practicalTraining: false,
   },
 };
+
+const EMPTY_EQUIP_ITEM = { category: '', subcategory: '', categoryName: '', subcategoryName: '', quantity: '', specs: '' };
 
 const ACTIVITIES: [string, string][] = [
   ['casing', 'Casing'], ['solarPump', 'Solar Pump'], ['testing', 'Testing'],
@@ -44,6 +47,8 @@ const buildInstallBody = (f: any, customerId: string) => ({
     casingType: f.wellData.casingType,
   },
   installationTeam: f.installationTeam.filter((t: string) => t.trim() !== ''),
+  endUsers:  (f.endUsers  || []).filter((u: any) => u.name.trim() !== ''),
+  equipment: (f.equipment || []).filter((e: any) => e.category !== ''),
 });
 
 type InstallCtx = {
@@ -54,6 +59,10 @@ type InstallCtx = {
   well: (k: string, v: string)  => void;
   act:  (k: string, v: boolean) => void;
   team: (i: number, v: string)  => void;
+  setEquip: (items: any[]) => void;
+  setEndUsers: (users: any[]) => void;
+  categories: any[];
+  subcategories: any[];
   err:  string;
   onSave?:   () => void;
   onCancel?: () => void;
@@ -93,6 +102,15 @@ export default function Customers() {
   const [installForm, setInstallForm]           = useState<any>({ ...EMPTY_INSTALL });
   const [savingInstall, setSavingInstall]       = useState(false);
   const [installError, setInstallError]         = useState('');
+
+  // ── Equipment categories ──────────────────────────────────────────────────
+  const [categories, setCategories]       = useState<any[]>([]);
+  const [subcategories, setSubcategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    eApi.categories().then((r) => setCategories(r.data.categories));
+    eApi.subcategories().then((r) => setSubcategories(r.data.subcategories));
+  }, []);
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const load = async () => {
@@ -197,13 +215,15 @@ export default function Customers() {
     onCancel?: () => void,
     isSaving?: boolean,
   ): InstallCtx => ({
-    f, err, onSave, onCancel, isSaving,
+    f, err, onSave, onCancel, isSaving, categories, subcategories,
     set:  (k, v) => setF((p: any) => ({ ...p, [k]: v })),
     pump: (k, v) => setF((p: any) => ({ ...p, pumpData:    { ...p.pumpData,    [k]: v } })),
     pkg:  (k, v) => setF((p: any) => ({ ...p, packageItems:{ ...p.packageItems,[k]: v } })),
     well: (k, v) => setF((p: any) => ({ ...p, wellData:    { ...p.wellData,    [k]: v } })),
     act:  (k, v) => setF((p: any) => ({ ...p, activitiesPerformed: { ...p.activitiesPerformed, [k]: v } })),
     team: (i, v) => setF((p: any) => { const t = [...p.installationTeam]; t[i] = v; return { ...p, installationTeam: t }; }),
+    setEquip:    (items) => setF((p: any) => ({ ...p, equipment: items })),
+    setEndUsers: (users) => setF((p: any) => ({ ...p, endUsers: users })),
   });
 
   // ── Render helpers ─────────────────────────────────────────────────────────
@@ -258,7 +278,36 @@ export default function Customers() {
   );
 
   const renderInstallForm = (ctx: InstallCtx) => {
-    const { f, set, pump, pkg, well, act, team, err, onSave, onCancel, isSaving } = ctx;
+    const { f, set, pump, pkg, well, act, team, setEquip, setEndUsers, categories, subcategories, err, onSave, onCancel, isSaving } = ctx;
+
+    const updateEquipItem = (idx: number, field: string, value: string) => {
+      const items = [...(f.equipment || [])];
+      items[idx] = { ...items[idx], [field]: value };
+      // when category changes, reset subcategory
+      if (field === 'category') {
+        const cat = categories.find((c: any) => c._id === value);
+        items[idx].categoryName = cat?.name || value;
+        items[idx].subcategory = '';
+        items[idx].subcategoryName = '';
+      }
+      if (field === 'subcategory') {
+        const sub = subcategories.find((s: any) => s._id === value);
+        items[idx].subcategoryName = sub?.name || value;
+      }
+      setEquip(items);
+    };
+
+    const addEquipItem = () => setEquip([...(f.equipment || []), { ...EMPTY_EQUIP_ITEM }]);
+    const removeEquipItem = (idx: number) => setEquip((f.equipment || []).filter((_: any, i: number) => i !== idx));
+
+    const updateEndUser = (idx: number, field: string, value: string) => {
+      const users = [...(f.endUsers || [])];
+      users[idx] = { ...users[idx], [field]: value };
+      setEndUsers(users);
+    };
+    const addEndUser    = () => setEndUsers([...(f.endUsers || []), { name: '', phone: '' }]);
+    const removeEndUser = (idx: number) => setEndUsers((f.endUsers || []).filter((_: any, i: number) => i !== idx));
+
     return (
       <div className="space-y-5">
         {err && <p className="text-xs text-red-400 bg-red-900/20 border border-red-700/40 px-3 py-2 rounded-lg">{err}</p>}
@@ -283,16 +332,84 @@ export default function Customers() {
             <label className="form-label">Geo Location</label>
             <input className="form-input" value={f.geoLocation} onChange={(e) => set('geoLocation', e.target.value)} placeholder="e.g. X:431849, Y:778586, Z:1683" />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="form-label">End User Name</label>
-              <input className="form-input" value={f.endUserName} onChange={(e) => set('endUserName', e.target.value)} />
-            </div>
-            <div>
-              <label className="form-label">End User Phone</label>
-              <input className="form-input" value={f.endUserPhone} onChange={(e) => set('endUserPhone', e.target.value)} placeholder="09xxxxxxxx" />
-            </div>
+        </div>
+
+        {/* End Users */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">End Users</p>
+            <button type="button" onClick={addEndUser} className="flex items-center gap-1 text-xs text-primary hover:text-primary-dark transition-colors">
+              <UserPlus className="w-3.5 h-3.5" /> Add
+            </button>
           </div>
+          <div className="space-y-2">
+            {(f.endUsers || []).map((u: any, idx: number) => (
+              <div key={idx} className="flex gap-2 items-start">
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input className="form-input" value={u.name} onChange={(e) => updateEndUser(idx, 'name', e.target.value)} placeholder={`End user ${idx + 1} name`} />
+                  <input className="form-input" value={u.phone} onChange={(e) => updateEndUser(idx, 'phone', e.target.value)} placeholder="Phone" />
+                </div>
+                {(f.endUsers || []).length > 1 && (
+                  <button type="button" onClick={() => removeEndUser(idx)} className="mt-1 p-1.5 text-gray-500 hover:text-red-400 transition-colors">
+                    <Trash className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Equipment */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Equipment</p>
+            <button type="button" onClick={addEquipItem} className="flex items-center gap-1 text-xs text-primary hover:text-primary-dark transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Add Item
+            </button>
+          </div>
+          {(f.equipment || []).length === 0 ? (
+            <p className="text-xs text-gray-600 italic">No equipment added yet. Click "+ Add Item" to add.</p>
+          ) : (
+            <div className="space-y-3">
+              {(f.equipment || []).map((item: any, idx: number) => {
+                const filteredSubs = subcategories.filter((s: any) => s.category?._id === item.category || s.category === item.category);
+                return (
+                  <div key={idx} className="border border-surface-border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-400">Item {idx + 1}</p>
+                      <button type="button" onClick={() => removeEquipItem(idx)} className="p-1 text-gray-500 hover:text-red-400 transition-colors">
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="form-label">Category</label>
+                        <select className="form-input" value={item.category} onChange={(e) => updateEquipItem(idx, 'category', e.target.value)}>
+                          <option value="">Select category…</option>
+                          {categories.map((c: any) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label">Subcategory</label>
+                        <select className="form-input" value={item.subcategory} onChange={(e) => updateEquipItem(idx, 'subcategory', e.target.value)} disabled={!item.category}>
+                          <option value="">Select subcategory…</option>
+                          {filteredSubs.map((s: any) => <option key={s._id} value={s._id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label">Quantity</label>
+                        <input className="form-input" value={item.quantity} onChange={(e) => updateEquipItem(idx, 'quantity', e.target.value)} placeholder="e.g. 2 units" />
+                      </div>
+                      <div>
+                        <label className="form-label">Specs / Description</label>
+                        <input className="form-input" value={item.specs} onChange={(e) => updateEquipItem(idx, 'specs', e.target.value)} placeholder="e.g. 300w, 24V" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Pump */}
@@ -390,7 +507,6 @@ export default function Customers() {
           <textarea className="form-input" rows={2} value={f.remarks} onChange={(e) => set('remarks', e.target.value)} />
         </div>
 
-        {/* Panel save/cancel buttons — only shown when onSave is provided */}
         {onSave && (
           <div className="flex gap-3">
             <button className="btn-ghost flex-1" onClick={onCancel}>Cancel</button>
@@ -452,7 +568,19 @@ export default function Customers() {
                   </div>
                   {inst.projectCategory && <p className="text-xs text-primary">{inst.projectCategory}</p>}
                   {inst.siteName && <p className="text-xs text-gray-400">Site: {inst.siteName}</p>}
-                  {inst.endUserName && <p className="text-xs text-gray-500">End user: {inst.endUserName}{inst.endUserPhone ? ` · ${inst.endUserPhone}` : ''}</p>}
+                  {inst.endUsers?.filter((u: any) => u.name).map((u: any, i: number) => (
+                    <p key={i} className="text-xs text-gray-500">End user: {u.name}{u.phone ? ` · ${u.phone}` : ''}</p>
+                  ))}
+                  {!inst.endUsers?.length && inst.endUserName && <p className="text-xs text-gray-500">End user: {inst.endUserName}{inst.endUserPhone ? ` · ${inst.endUserPhone}` : ''}</p>}
+                  {inst.equipment?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {inst.equipment.map((eq: any, i: number) => (
+                        <span key={i} className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded">
+                          {eq.categoryName || eq.category}{eq.subcategoryName ? ` › ${eq.subcategoryName}` : ''}{eq.quantity ? ` (${eq.quantity})` : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {inst.installationDate && <p className="text-xs text-gray-500">Date: {new Date(inst.installationDate).toLocaleDateString()}</p>}
                   {inst.pumpData?.brand && <p className="text-xs text-gray-500">Pump: {inst.pumpData.brand} {inst.pumpData.model}{inst.pumpData.type ? ` · ${inst.pumpData.type}` : ''}</p>}
                   {inst.installationTeam?.length > 0 && <p className="text-xs text-gray-500">Team: {inst.installationTeam.join(', ')}</p>}

@@ -143,7 +143,19 @@ export default function Installations() {
                     {inst.projectCategory && <p className="text-xs text-primary">{inst.projectCategory}</p>}
                     <p className="text-xs text-gray-400">{inst.customer?.fullName} · {inst.customer?.region}{inst.customer?.woreda ? `, ${inst.customer.woreda}` : ''}</p>
                     {inst.siteName && <p className="text-xs text-gray-500">Site: {inst.siteName}</p>}
-                    {inst.endUserName && <p className="text-xs text-gray-500">End user: {inst.endUserName}{inst.endUserPhone ? ` · ${inst.endUserPhone}` : ''}</p>}
+                    {inst.endUsers?.filter((u: any) => u.name).map((u: any, i: number) => (
+                      <p key={i} className="text-xs text-gray-500">End user: {u.name}{u.phone ? ` · ${u.phone}` : ''}</p>
+                    ))}
+                    {!inst.endUsers?.length && inst.endUserName && <p className="text-xs text-gray-500">End user: {inst.endUserName}{inst.endUserPhone ? ` · ${inst.endUserPhone}` : ''}</p>}
+                    {inst.equipment?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {inst.equipment.map((eq: any, i: number) => (
+                          <span key={i} className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded">
+                            {eq.categoryName || eq.category}{eq.subcategoryName ? ` › ${eq.subcategoryName}` : ''}{eq.quantity ? ` (${eq.quantity})` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {inst.installationDate && (
                       <p className="text-xs text-gray-500">Date: {new Date(inst.installationDate).toLocaleDateString()}</p>
                     )}

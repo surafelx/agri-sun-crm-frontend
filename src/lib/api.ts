@@ -55,6 +55,16 @@ export const installations = {
   delete: (id: string) => api.delete(`/installations/${id}`),
 };
 
+// ── Equipment categories / subcategories ──────────────────────────────────────
+export const equipment = {
+  categories:        ()             => api.get('/equipment/categories'),
+  subcategories:     (catId?: string) => api.get('/equipment/subcategories', { params: catId ? { category: catId } : {} }),
+  createCategory:    (data: any)    => api.post('/equipment/categories', data),
+  createSubcategory: (data: any)    => api.post('/equipment/subcategories', data),
+  deleteCategory:    (id: string)   => api.delete(`/equipment/categories/${id}`),
+  deleteSubcategory: (id: string)   => api.delete(`/equipment/subcategories/${id}`),
+};
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const dashboard = {
   stats:              () => api.get('/dashboard/stats'),
