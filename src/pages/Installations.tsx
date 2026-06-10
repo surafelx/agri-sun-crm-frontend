@@ -78,14 +78,31 @@ export default function Installations() {
       installationTeam: i.installationTeam?.length
         ? [...i.installationTeam, '', ''].slice(0, 3)
         : ['', '', ''],
+      wellData: {
+        diameter:   i.wellData?.diameter   ?? '',
+        depth:      i.wellData?.depth      ?? '',
+        waterLevel: i.wellData?.waterLevel ?? '',
+        casingSize: i.wellData?.casingSize || '',
+        casingType: i.wellData?.casingType || '',
+      },
+      activitiesPerformed: {
+        casing:              i.activitiesPerformed?.casing              || false,
+        solarPump:           i.activitiesPerformed?.solarPump           || false,
+        testing:             i.activitiesPerformed?.testing             || false,
+        solarPanelStructure: i.activitiesPerformed?.solarPanelStructure || false,
+        sprinkler:           i.activitiesPerformed?.sprinkler           || false,
+        practicalTraining:   i.activitiesPerformed?.practicalTraining   || false,
+      },
       attachments: i.attachments || [],
     });
     setEditItem(i);
   };
 
-  const ef = (key: string, val: any) => setEditForm((f: any) => ({ ...f, [key]: val }));
-  const efPump = (k: string, v: string) => setEditForm((f: any) => ({ ...f, pumpData: { ...f.pumpData, [k]: v } }));
-  const efPkg  = (k: string, v: string) => setEditForm((f: any) => ({ ...f, packageItems: { ...f.packageItems, [k]: v } }));
+  const ef     = (key: string, val: any) => setEditForm((f: any) => ({ ...f, [key]: val }));
+  const efPump = (k: string, v: string)  => setEditForm((f: any) => ({ ...f, pumpData:    { ...f.pumpData,    [k]: v } }));
+  const efPkg  = (k: string, v: string)  => setEditForm((f: any) => ({ ...f, packageItems:{ ...f.packageItems,[k]: v } }));
+  const efWell = (k: string, v: string)  => setEditForm((f: any) => ({ ...f, wellData:    { ...f.wellData,    [k]: v } }));
+  const efAct  = (k: string, v: boolean) => setEditForm((f: any) => ({ ...f, activitiesPerformed: { ...f.activitiesPerformed, [k]: v } }));
   const efTeam = (idx: number, v: string) => setEditForm((f: any) => {
     const t = [...f.installationTeam]; t[idx] = v; return { ...f, installationTeam: t };
   });
@@ -95,6 +112,12 @@ export default function Installations() {
     const body = {
       ...editForm,
       installationTeam: editForm.installationTeam.filter((t: string) => t.trim() !== ''),
+      wellData: {
+        ...editForm.wellData,
+        diameter:   editForm.wellData.diameter   !== '' ? Number(editForm.wellData.diameter)   : null,
+        depth:      editForm.wellData.depth      !== '' ? Number(editForm.wellData.depth)      : null,
+        waterLevel: editForm.wellData.waterLevel !== '' ? Number(editForm.wellData.waterLevel) : null,
+      },
     };
     await iApi.update(editItem._id, body);
     setEditItem(null); setSaving(false); load();
@@ -166,6 +189,14 @@ export default function Installations() {
                         Pump: {inst.pumpData.brand} {inst.pumpData.model}
                         {inst.pumpData.type ? ` · ${inst.pumpData.type}` : ''}
                         {inst.pumpData.power ? ` · ${inst.pumpData.power}` : ''}
+                      </p>
+                    )}
+                    {(inst.wellData?.depth || inst.wellData?.diameter) && (
+                      <p className="text-xs text-gray-500">
+                        Well:{inst.wellData.depth ? ` Depth ${inst.wellData.depth}m` : ''}
+                        {inst.wellData.diameter ? ` · Ø${inst.wellData.diameter}m` : ''}
+                        {inst.wellData.waterLevel != null ? ` · WL ${inst.wellData.waterLevel}m` : ''}
+                        {inst.wellData.casingType ? ` · ${inst.wellData.casingType}` : ''}
                       </p>
                     )}
                     {inst.installationTeam?.length > 0 && (
@@ -259,6 +290,34 @@ export default function Installations() {
                     <label className="form-label">{lbl}</label>
                     <input className="form-input" value={editForm.packageItems[k]} onChange={(e) => efPkg(k, e.target.value)} />
                   </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Well Data */}
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Well Data</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {([['diameter','Diameter (m)'],['depth','Depth (m)'],['waterLevel','Water Level (m)'],['casingSize','Casing Size'],['casingType','Casing Type']] as [string,string][]).map(([k, lbl]) => (
+                  <div key={k}>
+                    <label className="form-label">{lbl}</label>
+                    <input className="form-input" value={editForm.wellData[k]} onChange={(e) => efWell(k, e.target.value)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Activities Performed */}
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Activities Performed</p>
+              <div className="grid grid-cols-2 gap-y-2 gap-x-3">
+                {(Object.keys(ACT_LABELS) as string[]).map((key) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 accent-primary rounded"
+                      checked={editForm.activitiesPerformed?.[key] || false}
+                      onChange={(e) => efAct(key, e.target.checked)} />
+                    <span className="text-sm text-gray-300">{ACT_LABELS[key]}</span>
+                  </label>
                 ))}
               </div>
             </div>
