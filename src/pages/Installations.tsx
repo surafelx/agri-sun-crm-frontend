@@ -21,6 +21,7 @@ export default function Installations() {
   const [editItem, setEditItem]       = useState<any>(null);
   const [deleteItem, setDeleteItem]   = useState<any>(null);
   const [saving, setSaving]           = useState(false);
+  const [editError, setEditError]     = useState('');
   const [editForm, setEditForm]       = useState<any>({});
 
   const load = async () => {
@@ -44,6 +45,7 @@ export default function Installations() {
   useEffect(() => { load(); }, [filter, search]);
 
   const openEdit = (i: any) => {
+    setEditError('');
     setEditForm({
       projectTitle:    i.projectTitle    || '',
       projectCategory: i.projectCategory || '',
@@ -108,19 +110,28 @@ export default function Installations() {
   });
 
   const saveEdit = async () => {
+    setEditError('');
     setSaving(true);
-    const body = {
-      ...editForm,
-      installationTeam: editForm.installationTeam.filter((t: string) => t.trim() !== ''),
-      wellData: {
-        ...editForm.wellData,
-        diameter:   editForm.wellData.diameter   !== '' ? Number(editForm.wellData.diameter)   : null,
-        depth:      editForm.wellData.depth      !== '' ? Number(editForm.wellData.depth)      : null,
-        waterLevel: editForm.wellData.waterLevel !== '' ? Number(editForm.wellData.waterLevel) : null,
-      },
-    };
-    await iApi.update(editItem._id, body);
-    setEditItem(null); setSaving(false); load();
+    try {
+      const body = {
+        ...editForm,
+        installationDate: editForm.installationDate || null,
+        installationTeam: editForm.installationTeam.filter((t: string) => t.trim() !== ''),
+        wellData: {
+          ...editForm.wellData,
+          diameter:   editForm.wellData.diameter   !== '' ? Number(editForm.wellData.diameter)   : null,
+          depth:      editForm.wellData.depth      !== '' ? Number(editForm.wellData.depth)      : null,
+          waterLevel: editForm.wellData.waterLevel !== '' ? Number(editForm.wellData.waterLevel) : null,
+        },
+      };
+      await iApi.update(editItem._id, body);
+      setEditItem(null);
+      load();
+    } catch (e: any) {
+      setEditError(e.response?.data?.message || e.response?.data?.errors?.[0]?.msg || 'Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -235,6 +246,10 @@ export default function Installations() {
       {editItem && (
         <Modal title="Edit Installation" onClose={() => setEditItem(null)} wide>
           <div className="space-y-5">
+
+            {editError && (
+              <p className="text-sm text-red-400 bg-red-900/20 border border-red-700/40 px-3 py-2 rounded-lg">{editError}</p>
+            )}
 
             {/* Project */}
             <div className="space-y-3">
