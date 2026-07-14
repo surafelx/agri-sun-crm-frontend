@@ -46,13 +46,15 @@ export default function Installations() {
 
   const openEdit = (i: any) => {
     setEditError('');
+    const firstEndUser = i.endUsers?.[0];
     setEditForm({
       projectTitle:    i.projectTitle    || '',
       projectCategory: i.projectCategory || '',
       siteName:        i.siteName        || '',
       geoLocation:     i.geoLocation     || '',
-      endUserName:     i.endUserName     || '',
-      endUserPhone:    i.endUserPhone    || '',
+      endUserName:     i.endUserName || firstEndUser?.name || '',
+      endUserPhone:    i.endUserPhone || firstEndUser?.phone || '',
+      endUsers:        i.endUsers?.length ? i.endUsers : (i.endUserName ? [{ name: i.endUserName, phone: i.endUserPhone || '' }] : []),
       status:          i.status,
       deliveredBy:     i.deliveredBy     || '',
       receivedBy:      i.receivedBy      || '',
@@ -118,12 +120,16 @@ export default function Installations() {
         installationDate: editForm.installationDate || null,
         installationTeam: editForm.installationTeam.filter((t: string) => t.trim() !== ''),
         wellData: {
-          ...editForm.wellData,
           diameter:   editForm.wellData.diameter   !== '' ? Number(editForm.wellData.diameter)   : null,
           depth:      editForm.wellData.depth      !== '' ? Number(editForm.wellData.depth)      : null,
           waterLevel: editForm.wellData.waterLevel !== '' ? Number(editForm.wellData.waterLevel) : null,
+          casingSize: editForm.wellData.casingSize,
+          casingType: editForm.wellData.casingType,
         },
+        endUsers: (editForm.endUsers || []).filter((u: any) => u.name?.trim()),
       };
+      delete body.endUserName;
+      delete body.endUserPhone;
       await iApi.update(editItem._id, body);
       setEditItem(null);
       load();
@@ -202,11 +208,12 @@ export default function Installations() {
                         {inst.pumpData.power ? ` · ${inst.pumpData.power}` : ''}
                       </p>
                     )}
-                    {(inst.wellData?.depth || inst.wellData?.diameter) && (
+                    {(inst.wellData?.depth != null || inst.wellData?.diameter != null || inst.wellData?.waterLevel != null || inst.wellData?.casingSize || inst.wellData?.casingType) && (
                       <p className="text-xs text-gray-500">
-                        Well:{inst.wellData.depth ? ` Depth ${inst.wellData.depth}m` : ''}
-                        {inst.wellData.diameter ? ` · Ø${inst.wellData.diameter}m` : ''}
+                        Well:{inst.wellData.depth != null ? ` Depth ${inst.wellData.depth}m` : ''}
+                        {inst.wellData.diameter != null ? ` · Ø${inst.wellData.diameter}m` : ''}
                         {inst.wellData.waterLevel != null ? ` · WL ${inst.wellData.waterLevel}m` : ''}
+                        {inst.wellData.casingSize ? ` · Casing ${inst.wellData.casingSize}` : ''}
                         {inst.wellData.casingType ? ` · ${inst.wellData.casingType}` : ''}
                       </p>
                     )}
@@ -271,14 +278,33 @@ export default function Installations() {
                 <label className="form-label">Geo Location</label>
                 <input className="form-input" value={editForm.geoLocation} onChange={(e) => ef('geoLocation', e.target.value)} placeholder="X:..., Y:..., Z:..." />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="form-label">End User Name</label>
-                  <input className="form-input" value={editForm.endUserName} onChange={(e) => ef('endUserName', e.target.value)} />
-                </div>
-                <div>
-                  <label className="form-label">End User Phone</label>
-                  <input className="form-input" value={editForm.endUserPhone} onChange={(e) => ef('endUserPhone', e.target.value)} />
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">End Users</p>
+                <div className="space-y-2">
+                  {(editForm.endUsers || []).map((u: any, idx: number) => (
+                    <div key={idx} className="flex gap-2 items-start">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input className="form-input" value={u.name} onChange={(e) => {
+                          const users = [...editForm.endUsers]; users[idx] = { ...users[idx], name: e.target.value };
+                          setEditForm((f: any) => ({ ...f, endUsers: users }));
+                        }} placeholder={`End user ${idx + 1} name`} />
+                        <input className="form-input" value={u.phone} onChange={(e) => {
+                          const users = [...editForm.endUsers]; users[idx] = { ...users[idx], phone: e.target.value };
+                          setEditForm((f: any) => ({ ...f, endUsers: users }));
+                        }} placeholder="Phone" />
+                      </div>
+                      {(editForm.endUsers || []).length > 1 && (
+                        <button type="button" onClick={() => {
+                          setEditForm((f: any) => ({ ...f, endUsers: f.endUsers.filter((_: any, i: number) => i !== idx) }));
+                        }} className="mt-1 p-1.5 text-gray-500 hover:text-red-400 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => {
+                    setEditForm((f: any) => ({ ...f, endUsers: [...(f.endUsers || []), { name: '', phone: '' }] }));
+                  }} className="text-xs text-primary hover:text-primary-dark transition-colors">+ Add End User</button>
                 </div>
               </div>
             </div>
@@ -313,12 +339,21 @@ export default function Installations() {
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Well Data</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {([['diameter','Diameter (m)'],['depth','Depth (m)'],['waterLevel','Water Level (m)'],['casingSize','Casing Size'],['casingType','Casing Type']] as [string,string][]).map(([k, lbl]) => (
-                  <div key={k}>
-                    <label className="form-label">{lbl}</label>
-                    <input className="form-input" value={editForm.wellData[k]} onChange={(e) => efWell(k, e.target.value)} />
-                  </div>
-                ))}
+                {([['diameter','Diameter (m)'],['depth','Depth (m)'],['waterLevel','Water Level (m)'],['casingSize','Casing Size'],['casingType','Casing Type']] as [string,string][]).map(([k, lbl]) => {
+                  const numeric = k === 'diameter' || k === 'depth' || k === 'waterLevel';
+                  return (
+                    <div key={k}>
+                      <label className="form-label">{lbl}</label>
+                      <input
+                        className="form-input"
+                        type={numeric ? 'number' : 'text'}
+                        {...(numeric ? { step: 'any', min: 0, inputMode: 'decimal' as const } : {})}
+                        value={editForm.wellData[k]}
+                        onChange={(e) => efWell(k, e.target.value)}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
