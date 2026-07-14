@@ -38,14 +38,15 @@ const ACTIVITIES: [string, string][] = [
 ];
 
 // helpers to build a clean installation body for the API
+const toNum = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 const buildInstallBody = (f: any, customerId: string) => ({
   ...f,
   customer: customerId,
   installationDate: f.installationDate || null,
   wellData: {
-    diameter:   f.wellData.diameter   !== '' ? Number(f.wellData.diameter)   : null,
-    depth:      f.wellData.depth      !== '' ? Number(f.wellData.depth)      : null,
-    waterLevel: f.wellData.waterLevel !== '' ? Number(f.wellData.waterLevel) : null,
+    diameter:   toNum(f.wellData.diameter),
+    depth:      toNum(f.wellData.depth),
+    waterLevel: toNum(f.wellData.waterLevel),
     casingSize: f.wellData.casingSize,
     casingType: f.wellData.casingType,
   },
@@ -441,12 +442,21 @@ export default function Customers() {
         <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Well Data</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {([['diameter','Diameter (m)'],['depth','Depth (m)'],['waterLevel','Water Level (m)'],['casingSize','Casing Size'],['casingType','Casing Type']] as [string,string][]).map(([k, lbl]) => (
-              <div key={k}>
-                <label className="form-label">{lbl}</label>
-                <input className="form-input" value={f.wellData[k]} onChange={(e) => well(k, e.target.value)} />
-              </div>
-            ))}
+            {([['diameter','Diameter (m)'],['depth','Depth (m)'],['waterLevel','Water Level (m)'],['casingSize','Casing Size'],['casingType','Casing Type']] as [string,string][]).map(([k, lbl]) => {
+              const numeric = k === 'diameter' || k === 'depth' || k === 'waterLevel';
+              return (
+                <div key={k}>
+                  <label className="form-label">{lbl}</label>
+                  <input
+                    className="form-input"
+                    type={numeric ? 'number' : 'text'}
+                    {...(numeric ? { step: 'any', min: 0, inputMode: 'decimal' as const } : {})}
+                    value={f.wellData[k]}
+                    onChange={(e) => well(k, e.target.value)}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
 
