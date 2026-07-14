@@ -4,6 +4,7 @@ import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import Installations from './pages/Installations';
+import Reports from './pages/Reports';
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/installations" element={<Installations />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

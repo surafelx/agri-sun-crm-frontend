@@ -1,12 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Users, Wrench, LogOut, Sun, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Wrench, BarChart3, LogOut, Sun, Menu, X } from 'lucide-react';
 
 const nav = [
   { to: '/',              label: 'Dashboard',     icon: LayoutDashboard },
   { to: '/customers',     label: 'Customers',     icon: Users },
   { to: '/installations', label: 'Installations', icon: Wrench },
+  { to: '/reports',       label: 'Reports',       icon: BarChart3 },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {

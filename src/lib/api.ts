@@ -86,3 +86,17 @@ export const dashboard = {
   byRegion:           () => api.get('/dashboard/customers-by-region'),
   monthlyInstallations: () => api.get('/dashboard/monthly-installations'),
 };
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+export const reports = {
+  customers: (params?: Record<string, any>) =>
+    api.get('/reports/customers', { params, responseType: 'blob' }),
+  installations: (params?: Record<string, any>) =>
+    api.get('/reports/installations', { params, responseType: 'blob' }),
+  wellSummary: (params?: Record<string, any>) =>
+    api.get('/reports/well-summary', { params, responseType: 'blob' }),
+  installationsByStatus: () => api.get('/reports/installations-by-status'),
+  installationsByRegion: () => api.get('/reports/installations-by-region'),
+  custom: (params?: Record<string, any>) =>
+    api.get('/reports/custom', { params, responseType: 'blob' }),
+};
